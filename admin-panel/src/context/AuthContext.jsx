@@ -31,11 +31,11 @@ export const AuthProvider = ({ children }) => {
           setUser(currentUser);
           setAuthError(null);
         } else {
-          // Immediately reject unauthorized visitors
+          // Immediately reject unauthorized visitors without leaking owner identity
           console.warn(`Unauthorized login attempt by: ${userEmail}. Enforcing owner-only isolation.`);
           await signOut(auth);
           setUser(null);
-          setAuthError(`Access Denied: ${userEmail} is not authorized. Only the owner (${OWNER_EMAIL}) has access.`);
+          setAuthError('Access Denied: Unauthorized account. Only the authorized administrator has access.');
         }
       } else {
         setUser(null);
@@ -50,11 +50,9 @@ export const AuthProvider = ({ children }) => {
     setAuthError(null);
     const normalizedEmail = (email || '').trim().toLowerCase();
 
-    // Strict client-side gate before even dispatching request
+    // Strict client-side gate before even dispatching request (zero email leak)
     if (normalizedEmail !== OWNER_EMAIL) {
-      const err = new Error(
-        `Access Denied: This portal is strictly restricted to the owner (${OWNER_EMAIL}). You entered: ${email}`
-      );
+      const err = new Error('Access Denied: Invalid credentials or unauthorized account.');
       setAuthError(err.message);
       throw err;
     }
@@ -71,7 +69,7 @@ export const AuthProvider = ({ children }) => {
       console.error('Login error:', err);
       let userFriendlyMessage = err.message;
       if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-        userFriendlyMessage = 'Invalid credentials. If this is your first time, please create your master password below.';
+        userFriendlyMessage = 'Invalid email or password. If this is your first time, please set up your password below.';
       } else if (err.code === 'auth/wrong-password') {
         userFriendlyMessage = 'Incorrect password. Please verify and try again.';
       } else if (err.code === 'auth/too-many-requests') {
@@ -87,9 +85,7 @@ export const AuthProvider = ({ children }) => {
     const normalizedEmail = (email || '').trim().toLowerCase();
 
     if (normalizedEmail !== OWNER_EMAIL) {
-      const err = new Error(
-        `Registration Forbidden: Only the master owner email (${OWNER_EMAIL}) can establish an admin account.`
-      );
+      const err = new Error('Registration Forbidden: Only the authorized administrator can create an account.');
       setAuthError(err.message);
       throw err;
     }
@@ -126,7 +122,7 @@ export const AuthProvider = ({ children }) => {
   const resetPassword = async (email) => {
     const normalizedEmail = (email || '').trim().toLowerCase();
     if (normalizedEmail !== OWNER_EMAIL) {
-      throw new Error(`Password reset is only available for the owner email (${OWNER_EMAIL}).`);
+      throw new Error('Access Denied: Invalid email address for password reset.');
     }
     if (!auth) throw new Error('Firebase Auth not available.');
     await sendPasswordResetEmail(auth, normalizedEmail);
