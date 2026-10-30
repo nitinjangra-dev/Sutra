@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@theme {
+  --color-sutra-bg: #0D0F12;
+  --color-sutra-card: #181B20;
+  --color-sutra-card-hover: #22262E;
+  --color-sutra-border: #2A2E37;
+  --color-sutra-gold: #E6C794;
+  --color-sutra-gold-hover: #D4B27B;
+  --color-sutra-text-primary: #F5F5F7;
+  --color-sutra-text-secondary: #A1A8B3;
+  --color-sutra-text-muted: #6B7280;
+  
+  --font-sanskrit: "Rozha One", serif;
+  --font-hindi: "Noto Sans Devanagari", sans-serif;
+  --font-yatra: "Yatra One", cursive;
+}
+
+/* Base custom styles */
+body {
+  background-color: #0D0F12;
+  color: #F5F5F7;
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0D0F12;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2A2E37;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #E6C794;
+}
