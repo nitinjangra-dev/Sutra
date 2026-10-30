@@ -5,7 +5,6 @@ import {
   PlusCircle, 
   Image as ImageIcon, 
   Settings, 
-  Sparkles, 
   Feather, 
   LogOut, 
   ShieldCheck,
@@ -16,7 +15,7 @@ import { useShlokas } from '../context/ShlokaContext';
 import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar({ currentView, setCurrentView, openAddModal }) {
-  const { hasUnsavedChanges, publishedVersion, shlokas, isLoadingFirestore } = useShlokas();
+  const { publishedVersion, shlokas, isLoadingFirestore } = useShlokas();
   const { user, logout, ownerEmail } = useAuth();
 
   const navItems = [

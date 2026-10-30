@@ -5,7 +5,6 @@ import {
   CheckCircle2, 
   Download, 
   Zap, 
-  Sparkles,
   Database
 } from 'lucide-react';
 import { useShlokas } from '../context/ShlokaContext';

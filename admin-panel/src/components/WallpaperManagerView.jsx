@@ -1,12 +1,9 @@
 import React, { useState } from 'react';
 import { 
   Upload, 
-  Sparkles, 
-  Check, 
   Trash2, 
   Eye, 
-  Smartphone,
-  Plus
+  Smartphone
 } from 'lucide-react';
 import { CURATED_WALLPAPERS } from '../data/curatedWallpapers';
 

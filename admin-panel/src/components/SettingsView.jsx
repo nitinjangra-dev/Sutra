@@ -1,16 +1,11 @@
 import React, { useState } from 'react';
 import { 
   Database, 
-  Key, 
   CheckCircle2, 
-  ShieldCheck, 
   Zap, 
-  Download, 
-  Upload, 
-  HelpCircle,
-  Cpu,
-  Sparkles,
-  RefreshCw
+  Cpu, 
+  Sparkles, 
+  RefreshCw 
 } from 'lucide-react';
 import { firebaseConfig, isFirebaseConfigured } from '../firebase/config';
 import { useShlokas } from '../context/ShlokaContext';
@@ -18,7 +13,6 @@ import { useShlokas } from '../context/ShlokaContext';
 export default function SettingsView() {
   const { 
     shlokas, 
-    publishedVersion, 
     seedDatabaseToFirestore, 
     loadFromFirestore,
     isLoadingFirestore,

@@ -2,17 +2,13 @@ import React, { useState } from 'react';
 import { 
   BookOpen, 
   Sparkles, 
-  Flame, 
-  Heart, 
   Smartphone, 
   RefreshCw, 
   PlusCircle, 
-  TrendingUp, 
-  Zap,
-  CheckCircle2,
-  Database,
-  AlertTriangle,
-  CloudUpload
+  Zap, 
+  CheckCircle2, 
+  Database, 
+  AlertTriangle 
 } from 'lucide-react';
 import { useShlokas } from '../context/ShlokaContext';
 import { MOOD_CATEGORIES } from '../data/seedShlokas';

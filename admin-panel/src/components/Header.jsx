@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, CloudUpload, Sparkles, CheckCircle2, RefreshCw, Database } from 'lucide-react';
+import { Search, CloudUpload, CheckCircle2, RefreshCw, Database } from 'lucide-react';
 import { useShlokas } from '../context/ShlokaContext';
 
 export default function Header({ currentView, openPublishModal }) {

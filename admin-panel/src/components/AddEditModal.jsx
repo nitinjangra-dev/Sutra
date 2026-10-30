@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Sparkles, BookOpen, Check, Feather } from 'lucide-react';
+import { X, Sparkles, Feather } from 'lucide-react';
 import { useShlokas } from '../context/ShlokaContext';
-import { MOOD_CATEGORIES, SOURCES } from '../data/seedShlokas';
+import { MOOD_CATEGORIES } from '../data/seedShlokas';
 
 export default function AddEditModal({ isOpen, onClose, editingItem }) {
   const { addShloka, updateShloka } = useShlokas();

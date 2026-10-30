@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Lock, Shield, ShieldAlert, KeyRound, Eye, EyeOff, Sparkles, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Lock, Shield, ShieldAlert, Eye, EyeOff, CheckCircle2, ArrowRight } from 'lucide-react';
 
 export default function LoginGate() {
   const { login, registerOwner, resetPassword, authError, ownerEmail, setAuthError } = useAuth();
@@ -10,7 +10,6 @@ export default function LoginGate() {
   const [showPassword, setShowPassword] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [resetSent, setResetSent] = useState(false);
   const [customMsg, setCustomMsg] = useState(null);
 
   const handleSubmit = async (e) => {
