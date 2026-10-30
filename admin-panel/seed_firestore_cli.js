@@ -18,12 +18,12 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 
 async function main() {
-  const email = process.argv[2] || process.env.VITE_OWNER_EMAIL || "nitinjangra.dev@gmail.com";
+  const email = process.argv[2] || process.env.VITE_OWNER_EMAIL || "admin@sutra.dev";
   const password = process.argv[3];
 
   if (!password) {
     console.log("Usage: node seed_firestore_cli.js <email> <password>");
-    console.log("Example: node seed_firestore_cli.js nitinjangra.dev@gmail.com MyPassword123");
+    console.log("Example: node seed_firestore_cli.js admin@example.com MyPassword123");
     console.log("\nAlternatively, you can just click the 'Seed All Sacred Verses to Firestore' button directly in the Web Admin Portal dashboard!");
     process.exit(1);
   }

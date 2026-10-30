@@ -10,8 +10,37 @@ import {
 
 const AuthContext = createContext();
 
-// Verified Master Owner Email
-export const OWNER_EMAIL = (import.meta.env.VITE_OWNER_EMAIL || 'nitinjangra.dev@gmail.com').trim().toLowerCase();
+// Cryptographic one-way SHA-256 hash of the authorized master owner email.
+// The plaintext email is NEVER stored or disclosed anywhere in the frontend code or build bundle.
+export const OWNER_EMAIL_HASH = (
+  import.meta.env.VITE_OWNER_EMAIL_HASH ||
+  'a81957532b4d60bf74ae73f94816aaaacc355b0407da1c3bc65a289cf222571e'
+).trim().toLowerCase();
+
+/**
+ * Computes the SHA-256 hex digest for an input string using standard Web Crypto API.
+ */
+export async function hashEmail(email) {
+  const normalized = (email || '').trim().toLowerCase();
+  if (!normalized) return '';
+  if (typeof crypto !== 'undefined' && crypto.subtle) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(normalized);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hashBuffer))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+  return '';
+}
+
+/**
+ * Verifies if an email matches the owner hash without revealing the owner email in plaintext.
+ */
+export async function isOwnerEmail(email) {
+  const hash = await hashEmail(email);
+  return Boolean(hash && hash === OWNER_EMAIL_HASH);
+}
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -26,13 +55,13 @@ export const AuthProvider = ({ children }) => {
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        const userEmail = (currentUser.email || '').trim().toLowerCase();
-        if (userEmail === OWNER_EMAIL) {
+        const isOwner = await isOwnerEmail(currentUser.email);
+        if (isOwner) {
           setUser(currentUser);
           setAuthError(null);
         } else {
-          // Immediately reject unauthorized visitors without leaking owner identity
-          console.warn(`Unauthorized login attempt by: ${userEmail}. Enforcing owner-only isolation.`);
+          // Immediately reject unauthorized visitors
+          console.warn('Unauthorized login attempt detected. Enforcing owner-only isolation.');
           await signOut(auth);
           setUser(null);
           setAuthError('Access Denied: Unauthorized account. Only the authorized administrator has access.');
@@ -50,8 +79,9 @@ export const AuthProvider = ({ children }) => {
     setAuthError(null);
     const normalizedEmail = (email || '').trim().toLowerCase();
 
-    // Strict client-side gate before even dispatching request (zero email leak)
-    if (normalizedEmail !== OWNER_EMAIL) {
+    // Strict client-side gate before dispatching any request to Firebase
+    const isOwner = await isOwnerEmail(normalizedEmail);
+    if (!isOwner) {
       const err = new Error('Access Denied: Invalid credentials or unauthorized account.');
       setAuthError(err.message);
       throw err;
@@ -84,7 +114,8 @@ export const AuthProvider = ({ children }) => {
     setAuthError(null);
     const normalizedEmail = (email || '').trim().toLowerCase();
 
-    if (normalizedEmail !== OWNER_EMAIL) {
+    const isOwner = await isOwnerEmail(normalizedEmail);
+    if (!isOwner) {
       const err = new Error('Registration Forbidden: Only the authorized administrator can create an account.');
       setAuthError(err.message);
       throw err;
@@ -121,7 +152,8 @@ export const AuthProvider = ({ children }) => {
 
   const resetPassword = async (email) => {
     const normalizedEmail = (email || '').trim().toLowerCase();
-    if (normalizedEmail !== OWNER_EMAIL) {
+    const isOwner = await isOwnerEmail(normalizedEmail);
+    if (!isOwner) {
       throw new Error('Access Denied: Invalid email address for password reset.');
     }
     if (!auth) throw new Error('Firebase Auth not available.');
@@ -134,8 +166,8 @@ export const AuthProvider = ({ children }) => {
         user,
         loading,
         authError,
-        ownerEmail: OWNER_EMAIL,
-        isOwner: Boolean(user && user.email?.toLowerCase() === OWNER_EMAIL),
+        isOwnerEmail,
+        isOwner: Boolean(user && user.email),
         login,
         registerOwner,
         logout,

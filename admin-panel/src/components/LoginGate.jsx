@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { Lock, Shield, ShieldAlert, Eye, EyeOff, CheckCircle2, ArrowRight } from 'lucide-react';
 
 export default function LoginGate() {
-  const { login, registerOwner, resetPassword, authError, ownerEmail, setAuthError } = useAuth();
+  const { login, registerOwner, resetPassword, authError, isOwnerEmail, setAuthError } = useAuth();
   
   // Clean empty inputs - no pre-filled email or leaky placeholders
   const [email, setEmail] = useState('');
@@ -23,8 +23,10 @@ export default function LoginGate() {
 
     const targetEmail = email.trim().toLowerCase();
 
-    // Strict owner verification without leaking owner identity
-    if (targetEmail !== ownerEmail) {
+    // Frontend cryptographic SHA-256 verification:
+    // Rejects immediately on client side with ZERO network requests to Firebase if not owner
+    const isOwner = await isOwnerEmail(targetEmail);
+    if (!isOwner) {
       setIsLoading(false);
       setAuthError('Access Denied: Invalid credentials or unauthorized account.');
       return;
@@ -64,7 +66,8 @@ export default function LoginGate() {
     const targetEmail = email.trim().toLowerCase();
 
     try {
-      if (targetEmail === ownerEmail) {
+      const isOwner = await isOwnerEmail(targetEmail);
+      if (isOwner) {
         await resetPassword(targetEmail);
       }
       // Always show generic message to prevent user enumeration

@@ -16,7 +16,7 @@ import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar({ currentView, setCurrentView, openAddModal }) {
   const { publishedVersion, shlokas, isLoadingFirestore } = useShlokas();
-  const { user, logout, ownerEmail } = useAuth();
+  const { user, logout } = useAuth();
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -116,8 +116,8 @@ export default function Sidebar({ currentView, setCurrentView, openAddModal }) {
               <LogOut className="w-3.5 h-3.5" />
             </button>
           </div>
-          <div className="text-[11px] font-mono text-[#A1A8B3] truncate" title={user?.email || ownerEmail}>
-            {user?.email || ownerEmail}
+          <div className="text-[11px] font-mono text-[#A1A8B3] truncate" title={user?.email || 'Administrator'}>
+            {user?.email || 'Administrator'}
           </div>
         </div>
 
