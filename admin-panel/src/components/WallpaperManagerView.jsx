@@ -22,6 +22,58 @@ const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB strict limit
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png'];
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png'];
 
+export const WALLPAPER_CATEGORIES = [
+  {
+    id: 'dark',
+    name: 'Dark',
+    label: 'Dark & Minimal',
+    icon: '🌑',
+    desc: 'Deep obsidian, midnight black & high-contrast themes'
+  },
+  {
+    id: 'light',
+    name: 'Light',
+    label: 'Light & Serene',
+    icon: '☀️',
+    desc: 'Soft golden dawn, serene marble & sacred radiance'
+  },
+  {
+    id: 'mountain',
+    name: 'Mountain',
+    label: 'Mountains & Peaks',
+    icon: '⛰️',
+    desc: 'Himalayan peaks, rocky heights, snow & mist'
+  },
+  {
+    id: 'green_plants',
+    name: 'Green Plants',
+    label: 'Green Plants & Forest',
+    icon: '🌿',
+    desc: 'Sacred trees, lush foliage, Vrindavan nature & leaves'
+  },
+  {
+    id: 'sky',
+    name: 'Sky',
+    label: 'Sky & Celestial',
+    icon: '🌌',
+    desc: 'Cosmic ether, golden dusk, clouds & atmospheric horizons'
+  },
+  {
+    id: 'texture',
+    name: 'Texture',
+    label: 'Stone & Texture',
+    icon: '🧱',
+    desc: 'Ancient temple carvings, textured slate & granite'
+  },
+  {
+    id: 'smoke',
+    name: 'Smoke',
+    label: 'Smoke & Incense',
+    icon: '💨',
+    desc: 'Mystical dhoop smoke, ethereal fog & holy vapor'
+  }
+];
+
 /**
  * Validates that an uploaded file is strictly a PC image, JPEG or PNG, under 2 MB.
  */
@@ -107,7 +159,7 @@ export default function WallpaperManagerView() {
 
   // Upload Form state
   const [newTitle, setNewTitle] = useState('');
-  const [newCategory, setNewCategory] = useState('nature');
+  const [newCategory, setNewCategory] = useState('dark');
   const [selectedFile, setSelectedFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [fileError, setFileError] = useState(null);
@@ -117,9 +169,14 @@ export default function WallpaperManagerView() {
 
   const activePreview = previewWallpaper || (wallpapers.length > 0 ? wallpapers[0] : null);
 
-  const filteredWallpapers = wallpapers.filter(
-    (wp) => selectedFilter === 'all' || wp.category === selectedFilter
-  );
+  const filteredWallpapers = wallpapers.filter((wp) => {
+    if (selectedFilter === 'all') return true;
+    if (wp.category === selectedFilter) return true;
+    // Handle legacy mappings
+    if (selectedFilter === 'green_plants' && wp.category === 'nature') return true;
+    if (selectedFilter === 'mountain' && (wp.category === 'nature' && (wp.title || '').toLowerCase().includes('mountain'))) return true;
+    return false;
+  });
 
   const showToast = (msg) => {
     setFeedbackMsg(msg);
@@ -182,7 +239,7 @@ export default function WallpaperManagerView() {
   const resetUploadModal = () => {
     setIsUploadOpen(false);
     setNewTitle('');
-    setNewCategory('nature');
+    setNewCategory('dark');
     setSelectedFile(null);
     setFilePreview(null);
     setFileError(null);
@@ -230,23 +287,28 @@ export default function WallpaperManagerView() {
         finalUrl = await compressImageToDataUrl(selectedFile);
       }
 
+      const categoryObj = WALLPAPER_CATEGORIES.find((c) => c.id === newCategory) || {
+        name: newCategory,
+        label: newCategory.toUpperCase(),
+        icon: '🖼️'
+      };
+
       const newWp = {
         title: newTitle.trim(),
         category: newCategory,
-        categoryLabel: newCategory === 'nature' ? 'Misty Nature' :
-                       newCategory === 'texture' ? 'Bold Texture' :
-                       newCategory === 'smoke' ? 'Smoke & Ether' : 'Atmospheric Horizon',
+        categoryLabel: categoryObj.label,
+        categoryIcon: categoryObj.icon,
         url: finalUrl,
         thumbnail: finalUrl,
-        accentColor: '#F5F5F7',
-        recommendedOpacity: 0.65,
+        accentColor: newCategory === 'dark' ? '#E6C794' : '#F5F5F7',
+        recommendedOpacity: newCategory === 'dark' ? 0.75 : 0.60,
         isPopular: false,
         file_size_kb: Math.round(selectedFile.size / 1024),
         original_name: selectedFile.name
       };
 
       await addWallpaper(newWp);
-      showToast(`Wallpaper "${newTitle}" uploaded from PC and saved to Cloud Firestore!`);
+      showToast(`Wallpaper "${newTitle}" categorized under ${categoryObj.label} and saved to Cloud Firestore!`);
       resetUploadModal();
     } catch (err) {
       console.error(err);
@@ -307,7 +369,7 @@ export default function WallpaperManagerView() {
             </span>
           </div>
           <p className="text-xs text-[#A1A8B3]">
-            High-definition 9:16 lockscreen backgrounds synchronized with the Sutra mobile application.
+            High-definition 9:16 lockscreen backgrounds organized by spiritual & aesthetic categories.
           </p>
         </div>
 
@@ -337,7 +399,7 @@ export default function WallpaperManagerView() {
             className="flex items-center gap-2 px-4 py-2 bg-[#E6C794] text-[#0D0F12] text-xs font-semibold rounded-xl hover:bg-[#D4B27B] transition-all shadow-sm cursor-pointer"
           >
             <Upload className="w-4 h-4 text-[#0D0F12]" />
-            <span>Upload from PC (&lt;2MB)</span>
+            <span>Upload Wallpaper (PC &lt; 2MB)</span>
           </button>
         </div>
       </div>
@@ -383,81 +445,129 @@ export default function WallpaperManagerView() {
       ) : (
         /* Populated Live Wallpapers */
         <div className="space-y-6">
-          {/* Category Filter Tabs */}
-          <div className="flex items-center gap-2 p-1 bg-[#181B20] border border-[#2A2E37] rounded-xl w-fit overflow-x-auto">
-            {['all', 'nature', 'texture', 'smoke', 'sky'].map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedFilter(cat)}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-medium uppercase tracking-wider transition-all cursor-pointer ${
-                  selectedFilter === cat
-                    ? 'bg-[#E6C794] text-[#0D0F12] font-semibold'
-                    : 'text-[#A1A8B3] hover:text-[#F5F5F7]'
-                }`}
-              >
-                {cat === 'all' ? `All (${wallpapers.length})` : cat}
-              </button>
-            ))}
+          {/* Aesthetic Category Filter Pills */}
+          <div className="flex items-center gap-2 p-1.5 bg-[#181B20] border border-[#2A2E37] rounded-2xl w-full overflow-x-auto scrollbar-none">
+            <button
+              onClick={() => setSelectedFilter('all')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                selectedFilter === 'all'
+                  ? 'bg-[#E6C794] text-[#0D0F12] font-semibold shadow-sm'
+                  : 'text-[#A1A8B3] hover:text-[#F5F5F7] hover:bg-[#22262E]'
+              }`}
+            >
+              <span>All Wallpapers</span>
+              <span className="text-[10px] opacity-75 font-mono">({wallpapers.length})</span>
+            </button>
+
+            {WALLPAPER_CATEGORIES.map((cat) => {
+              const count = wallpapers.filter((w) => {
+                if (w.category === cat.id) return true;
+                if (cat.id === 'green_plants' && w.category === 'nature') return true;
+                if (cat.id === 'mountain' && (w.category === 'nature' && (w.title || '').toLowerCase().includes('mountain'))) return true;
+                return false;
+              }).length;
+
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedFilter(cat.id)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedFilter === cat.id
+                      ? 'bg-[#E6C794] text-[#0D0F12] font-semibold shadow-sm'
+                      : 'text-[#A1A8B3] hover:text-[#F5F5F7] hover:bg-[#22262E]'
+                  }`}
+                >
+                  <span>{cat.icon}</span>
+                  <span>{cat.name}</span>
+                  {count > 0 && (
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                      selectedFilter === cat.id ? 'bg-[#0D0F12]/20 text-[#0D0F12]' : 'bg-[#2A2E37] text-[#A1A8B3]'
+                    }`}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           {/* Wallpapers Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-            {filteredWallpapers.map((wp) => (
-              <div
-                key={wp.id}
-                className="group relative rounded-2xl bg-[#181B20] border border-[#2A2E37] overflow-hidden hover:border-[#E6C794]/60 transition-all shadow-md flex flex-col"
-              >
-                {/* 9:14 Aspect Ratio Preview */}
-                <div className="relative aspect-[9/14] w-full overflow-hidden bg-black">
-                  <img
-                    src={wp.thumbnail || wp.url}
-                    alt={wp.title}
-                    loading="lazy"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
-
-                  {/* Category Tag */}
-                  <span className="absolute top-3 left-3 text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-md text-[#E6C794] border border-white/10">
-                    {wp.categoryLabel || wp.category}
-                  </span>
-
-                  {/* Action Overlays */}
-                  <div className="absolute inset-0 flex items-center justify-center gap-2.5 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 backdrop-blur-xs">
-                    <button
-                      onClick={() => setPreviewWallpaper(wp)}
-                      className="p-2.5 rounded-xl bg-white/20 text-white hover:bg-[#E6C794] hover:text-[#0D0F12] transition-colors cursor-pointer"
-                      title="Inspect Simulator Texture"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(wp.id, wp.title)}
-                      className="p-2.5 rounded-xl bg-red-500/20 text-red-300 hover:bg-red-500 hover:text-white transition-colors cursor-pointer"
-                      title="Delete from Firestore"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Footer Info */}
-                <div className="p-3.5 flex items-center justify-between">
-                  <div className="min-w-0 pr-2">
-                    <h4 className="font-semibold text-xs text-[#F5F5F7] truncate">{wp.title}</h4>
-                    <p className="text-[10px] text-[#A1A8B3] flex items-center gap-1 mt-0.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                      <span>Firestore: {wp.id}</span>
-                    </p>
-                  </div>
-                  {wp.isPopular && (
-                    <span className="text-[10px] text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20 shrink-0">
-                      Popular
-                    </span>
-                  )}
-                </div>
+            {filteredWallpapers.length === 0 ? (
+              <div className="col-span-full p-12 text-center rounded-2xl bg-[#181B20] border border-[#2A2E37] text-xs text-[#A1A8B3] space-y-3">
+                <p>No wallpapers found in category "{selectedFilter}".</p>
+                <button
+                  onClick={() => setIsUploadOpen(true)}
+                  className="px-3.5 py-1.5 rounded-xl bg-[#1F242C] border border-[#E6C794]/40 text-[#E6C794] text-xs font-medium hover:bg-[#E6C794] hover:text-[#0D0F12] transition-colors cursor-pointer"
+                >
+                  Upload First Wallpaper for this Category
+                </button>
               </div>
-            ))}
+            ) : (
+              filteredWallpapers.map((wp) => {
+                const categoryMatch = WALLPAPER_CATEGORIES.find((c) => c.id === wp.category);
+                const displayIcon = wp.categoryIcon || categoryMatch?.icon || '🖼️';
+                const displayLabel = wp.categoryLabel || categoryMatch?.label || wp.category;
+
+                return (
+                  <div
+                    key={wp.id}
+                    className="group relative rounded-2xl bg-[#181B20] border border-[#2A2E37] overflow-hidden hover:border-[#E6C794]/60 transition-all shadow-md flex flex-col"
+                  >
+                    {/* 9:14 Aspect Ratio Preview */}
+                    <div className="relative aspect-[9/14] w-full overflow-hidden bg-black">
+                      <img
+                        src={wp.thumbnail || wp.url}
+                        alt={wp.title}
+                        loading="lazy"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />
+
+                      {/* Category Tag with Emoji */}
+                      <span className="absolute top-3 left-3 text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-md text-[#E6C794] border border-white/10 flex items-center gap-1">
+                        <span>{displayIcon}</span>
+                        <span>{displayLabel}</span>
+                      </span>
+
+                      {/* Action Overlays */}
+                      <div className="absolute inset-0 flex items-center justify-center gap-2.5 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 backdrop-blur-xs">
+                        <button
+                          onClick={() => setPreviewWallpaper(wp)}
+                          className="p-2.5 rounded-xl bg-white/20 text-white hover:bg-[#E6C794] hover:text-[#0D0F12] transition-colors cursor-pointer"
+                          title="Inspect Simulator Texture"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(wp.id, wp.title)}
+                          className="p-2.5 rounded-xl bg-red-500/20 text-red-300 hover:bg-red-500 hover:text-white transition-colors cursor-pointer"
+                          title="Delete from Firestore"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Footer Info */}
+                    <div className="p-3.5 flex items-center justify-between">
+                      <div className="min-w-0 pr-2">
+                        <h4 className="font-semibold text-xs text-[#F5F5F7] truncate">{wp.title}</h4>
+                        <p className="text-[10px] text-[#A1A8B3] flex items-center gap-1 mt-0.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          <span className="truncate">Firestore: {wp.id}</span>
+                        </p>
+                      </div>
+                      {wp.isPopular && (
+                        <span className="text-[10px] text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20 shrink-0">
+                          Popular
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       )}
@@ -472,7 +582,7 @@ export default function WallpaperManagerView() {
             </div>
             <h3 className="text-lg font-bold text-[#F5F5F7]">{activePreview.title}</h3>
             <p className="text-xs text-[#A1A8B3] max-w-xl">
-              This high-resolution texture is stored in Cloud Firestore (<code className="text-[#E6C794]">{activePreview.id}</code>). It is rendered in the Lock Screen simulator to verify text contrast and sacred shloka legibility.
+              Category: <strong className="text-[#F5F5F7]">{activePreview.categoryLabel || activePreview.category}</strong> &bull; Stored in Cloud Firestore (<code className="text-[#E6C794]">{activePreview.id}</code>). Rendered in lockscreen simulator to verify contrast.
             </p>
           </div>
 
@@ -484,10 +594,10 @@ export default function WallpaperManagerView() {
         </div>
       )}
 
-      {/* Upload Wallpaper from PC Modal (Strictly PC File Only, JPEG/PNG < 2MB) */}
+      {/* Upload Wallpaper from PC Modal (Visual Category Cards, JPEG/PNG < 2MB) */}
       {isUploadOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-[#181B20] border border-[#2A2E37] w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in overflow-y-auto">
+          <div className="bg-[#181B20] border border-[#2A2E37] w-full max-w-xl rounded-3xl p-6 shadow-2xl space-y-5 my-8">
             <div className="flex items-center justify-between pb-3 border-b border-[#2A2E37]">
               <div>
                 <h3 className="text-base font-semibold text-[#F5F5F7]">Upload Wallpaper from PC</h3>
@@ -505,7 +615,7 @@ export default function WallpaperManagerView() {
             <div className="p-3 rounded-xl bg-[#121418] border border-[#2A2E37] grid grid-cols-2 gap-2 text-[11px] text-[#A1A8B3]">
               <div className="flex items-center gap-1.5">
                 <FileCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>Format: <strong>JPEG (.jpg, .jpeg) & PNG (.png)</strong></span>
+                <span>Format: <strong>JPEG & PNG Only</strong></span>
               </div>
               <div className="flex items-center gap-1.5">
                 <FileWarning className="w-3.5 h-3.5 text-[#E6C794] shrink-0" />
@@ -525,7 +635,7 @@ export default function WallpaperManagerView() {
               {/* File Dropzone */}
               <div>
                 <label className="block text-[11px] uppercase tracking-wider text-[#A1A8B3] font-medium mb-1.5">
-                  Choose Image File from Computer
+                  1. Choose Image File from PC
                 </label>
                 
                 <input
@@ -546,17 +656,17 @@ export default function WallpaperManagerView() {
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
-                    className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
+                    className={`border-2 border-dashed rounded-2xl p-5 text-center cursor-pointer transition-all ${
                       isDragging
                         ? 'border-[#E6C794] bg-[#E6C794]/10 scale-[1.01]'
                         : 'border-[#2A2E37] bg-[#121418] hover:border-[#E6C794]/60 hover:bg-[#15181E]'
                     }`}
                   >
-                    <div className="w-12 h-12 rounded-2xl bg-[#E6C794]/10 border border-[#E6C794]/30 flex items-center justify-center text-[#E6C794] mx-auto mb-3 shadow-md">
-                      <Upload className="w-6 h-6" />
+                    <div className="w-10 h-10 rounded-xl bg-[#E6C794]/10 border border-[#E6C794]/30 flex items-center justify-center text-[#E6C794] mx-auto mb-2 shadow-md">
+                      <Upload className="w-5 h-5" />
                     </div>
                     <p className="text-xs font-semibold text-[#F5F5F7]">
-                      Click to browse your PC or drag & drop image here
+                      Click to browse your computer or drag & drop image here
                     </p>
                     <p className="text-[11px] text-[#A1A8B3] mt-1">
                       JPEG or PNG only &bull; Under 2 MB &bull; Recommended 9:16 vertical ratio
@@ -596,7 +706,7 @@ export default function WallpaperManagerView() {
               {/* Title input */}
               <div>
                 <label className="block text-[11px] uppercase tracking-wider text-[#A1A8B3] font-medium mb-1">
-                  Wallpaper Title
+                  2. Wallpaper Title
                 </label>
                 <input
                   type="text"
@@ -604,25 +714,53 @@ export default function WallpaperManagerView() {
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="e.g. Celestial Golden Dawn"
-                  className="w-full bg-[#121418] border border-[#2A2E37] rounded-xl px-3 py-2.5 text-xs text-[#F5F5F7] focus:outline-none focus:border-[#E6C794]"
+                  className="w-full bg-[#121418] border border-[#2A2E37] rounded-xl px-3 py-2 text-xs text-[#F5F5F7] focus:outline-none focus:border-[#E6C794]"
                 />
               </div>
 
-              {/* Category selector */}
+              {/* Visual Category Selection Grid (Dark, Light, Sky, Mountain, Green Plants, Texture, Smoke) */}
               <div>
-                <label className="block text-[11px] uppercase tracking-wider text-[#A1A8B3] font-medium mb-1">
-                  Category
-                </label>
-                <select
-                  value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value)}
-                  className="w-full bg-[#121418] border border-[#2A2E37] rounded-xl px-3 py-2.5 text-xs text-[#F5F5F7] focus:outline-none focus:border-[#E6C794] cursor-pointer"
-                >
-                  <option value="nature">Misty Nature</option>
-                  <option value="texture">Bold Texture / Stone</option>
-                  <option value="smoke">Smoke & Ether</option>
-                  <option value="sky">Atmospheric Sky</option>
-                </select>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-[11px] uppercase tracking-wider text-[#A1A8B3] font-medium">
+                    3. Select Wallpaper Category
+                  </label>
+                  <span className="text-[11px] text-[#E6C794] font-medium">
+                    Selected: {WALLPAPER_CATEGORIES.find((c) => c.id === newCategory)?.label}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {WALLPAPER_CATEGORIES.map((cat) => {
+                    const isSelected = newCategory === cat.id;
+                    return (
+                      <button
+                        type="button"
+                        key={cat.id}
+                        onClick={() => setNewCategory(cat.id)}
+                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                          isSelected
+                            ? 'bg-[#E6C794]/15 border-[#E6C794] shadow-md shadow-[#E6C794]/10'
+                            : 'bg-[#121418] border-[#2A2E37] hover:border-[#E6C794]/50 hover:bg-[#161920]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xl">{cat.icon}</span>
+                          {isSelected && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-[#E6C794]" />
+                          )}
+                        </div>
+                        <div>
+                          <h5 className={`text-xs font-semibold ${isSelected ? 'text-[#E6C794]' : 'text-[#F5F5F7]'}`}>
+                            {cat.name}
+                          </h5>
+                          <p className="text-[10px] text-[#8E95A5] line-clamp-1 mt-0.5">
+                            {cat.label}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="pt-3 flex justify-end gap-2 border-t border-[#2A2E37]">
