@@ -15,7 +15,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { firebaseConfig, isFirebaseConfigured } from '../firebase/config';
-import { useShlokas, RECOMMENDED_FIRESTORE_RULES } from '../context/ShlokaContext';
+import { useShlokas, RECOMMENDED_FIRESTORE_RULES, RECOMMENDED_STORAGE_RULES } from '../context/ShlokaContext';
 
 export default function SettingsView() {
   const { 
@@ -45,6 +45,7 @@ export default function SettingsView() {
   const [copiedRules, setCopiedRules] = useState(false);
   const [pingResult, setPingResult] = useState(null);
   const [isPinging, setIsPinging] = useState(false);
+  const [activeRuleTab, setActiveRuleTab] = useState('firestore'); // 'firestore' | 'storage'
 
   const handleSaveConfig = (e) => {
     e.preventDefault();
@@ -198,35 +199,86 @@ export default function SettingsView() {
         )}
       </div>
 
-      {/* Security Rules Action Box (When permissions are blocked) */}
-      {connectionHealth === 'permission_denied' && (
-        <div className="p-6 rounded-3xl bg-[#181B20] border border-rose-500/50 space-y-4">
-          <div className="flex items-start justify-between gap-4">
+      {/* Security Rules Action Box (When permissions are blocked or to review rules) */}
+      {(connectionHealth === 'permission_denied' || isFirebaseConfigured) && (
+        <div className={`p-6 rounded-3xl bg-[#181B20] border space-y-4 ${
+          connectionHealth === 'permission_denied' ? 'border-rose-500/50' : 'border-[#2A2E37]'
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div className="space-y-1">
-              <h4 className="text-sm font-semibold text-rose-300 flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4 text-rose-400" />
-                <span>Fix "Missing or insufficient permissions"</span>
+              <h4 className="text-sm font-semibold flex items-center gap-2 text-[#F5F5F7]">
+                {connectionHealth === 'permission_denied' ? (
+                  <>
+                    <ShieldAlert className="w-4 h-4 text-rose-400" />
+                    <span className="text-rose-300">Action Required: Cloud Firestore Security Rules Denying Access</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span>Firebase Security Rules Reference</span>
+                  </>
+                )}
               </h4>
               <p className="text-xs text-[#A1A8B3] leading-relaxed">
-                Cloud Firestore in Firebase Console currently has rules set to reject operations. Update your security rules so the Sutra Mobile App can read scripture verses and the Admin Console can write:
+                {connectionHealth === 'permission_denied'
+                  ? 'Your database is rejecting queries with "Missing or insufficient permissions". Publish the recommended rules below in Firebase Console to enable read/write:'
+                  : 'Rules that ensure mobile app users can read scripture & wallpapers while only authenticated administrators can write:'}
               </p>
             </div>
-            <a
-              href={`https://console.firebase.google.com/project/${projectId}/firestore/rules`}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-xs font-semibold text-rose-200 border border-rose-500/40 shrink-0 transition-colors"
+
+            <div className="flex items-center gap-2 shrink-0">
+              <a
+                href={
+                  activeRuleTab === 'firestore'
+                    ? `https://console.firebase.google.com/project/${projectId}/firestore/rules`
+                    : `https://console.firebase.google.com/project/${projectId}/storage/rules`
+                }
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-xs font-semibold text-rose-200 border border-rose-500/40 transition-colors"
+              >
+                <span>Open {activeRuleTab === 'firestore' ? 'Firestore' : 'Storage'} Rules</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          </div>
+
+          {/* Rule Selection Tabs */}
+          <div className="flex items-center gap-2 p-1 bg-[#121418] border border-[#2A2E37] rounded-xl w-fit">
+            <button
+              onClick={() => setActiveRuleTab('firestore')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                activeRuleTab === 'firestore'
+                  ? 'bg-[#E6C794] text-[#0D0F12] font-semibold'
+                  : 'text-[#A1A8B3] hover:text-white'
+              }`}
             >
-              <span>Firebase Rules Console</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+              Firestore Database Rules
+            </button>
+            <button
+              onClick={() => setActiveRuleTab('storage')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                activeRuleTab === 'storage'
+                  ? 'bg-[#E6C794] text-[#0D0F12] font-semibold'
+                  : 'text-[#A1A8B3] hover:text-white'
+              }`}
+            >
+              Cloud Storage Rules (Wallpapers)
+            </button>
           </div>
 
           <div className="relative rounded-2xl bg-[#0D0F12] border border-[#2A2E37] p-4 text-xs font-mono text-[#E6C794] overflow-x-auto">
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#2A2E37]/60 text-[11px] text-[#A1A8B3]">
-              <span>Copy and paste into Firebase Console &gt; Firestore Database &gt; Rules:</span>
+              <span>
+                Paste into Firebase Console &gt; {activeRuleTab === 'firestore' ? 'Firestore Database' : 'Storage'} &gt; Rules:
+              </span>
               <button
-                onClick={handleCopyRules}
+                onClick={() => {
+                  const textToCopy = activeRuleTab === 'firestore' ? RECOMMENDED_FIRESTORE_RULES : RECOMMENDED_STORAGE_RULES;
+                  navigator.clipboard.writeText(textToCopy);
+                  setCopiedRules(true);
+                  setTimeout(() => setCopiedRules(false), 3000);
+                }}
                 className="flex items-center gap-1.5 px-3 py-1 bg-[#1E232B] hover:bg-[#2A2E37] text-white rounded-lg transition-colors cursor-pointer"
               >
                 {copiedRules ? (
@@ -237,12 +289,14 @@ export default function SettingsView() {
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5" />
-                    <span>Copy Rules</span>
+                    <span>Copy {activeRuleTab === 'firestore' ? 'Firestore' : 'Storage'} Rules</span>
                   </>
                 )}
               </button>
             </div>
-            <pre className="whitespace-pre">{RECOMMENDED_FIRESTORE_RULES}</pre>
+            <pre className="whitespace-pre">
+              {activeRuleTab === 'firestore' ? RECOMMENDED_FIRESTORE_RULES : RECOMMENDED_STORAGE_RULES}
+            </pre>
           </div>
         </div>
       )}

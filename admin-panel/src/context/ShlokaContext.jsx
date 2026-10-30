@@ -24,6 +24,18 @@ service cloud.firestore {
   }
 }`;
 
+export const RECOMMENDED_STORAGE_RULES = `rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Sutra Mobile App: public read for wallpapers
+    // Sutra Admin Console: upload for authenticated administrator
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}`;
+
 const ShlokaContext = createContext();
 
 export const ShlokaProvider = ({ children }) => {
