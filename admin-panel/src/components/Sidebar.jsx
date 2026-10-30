@@ -15,7 +15,7 @@ import { useShlokas } from '../context/ShlokaContext';
 import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar({ currentView, setCurrentView, openAddModal }) {
-  const { publishedVersion, shlokas, isLoadingFirestore } = useShlokas();
+  const { publishedVersion, shlokas, isLoadingFirestore, connectionHealth } = useShlokas();
   const { user, logout } = useAuth();
 
   const navItems = [
@@ -90,6 +90,10 @@ export default function Sidebar({ currentView, setCurrentView, openAddModal }) {
           </span>
           {isLoadingFirestore ? (
             <span className="text-[#A1A8B3] text-[11px]">Syncing...</span>
+          ) : connectionHealth === 'permission_denied' ? (
+            <span className="text-rose-400 font-medium text-[11px]">Blocked (Rules)</span>
+          ) : connectionHealth === 'offline' ? (
+            <span className="text-rose-400 font-medium text-[11px]">Offline</span>
           ) : isFirebaseConfigured ? (
             shlokas.length === 0 ? (
               <span className="text-amber-400 font-medium text-[11px]">0 (Empty)</span>
