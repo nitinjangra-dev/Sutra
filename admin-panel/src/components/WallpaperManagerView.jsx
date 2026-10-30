@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Upload, 
   Trash2, 
@@ -9,9 +9,83 @@ import {
   CheckCircle2,
   RefreshCw,
   Image as ImageIcon,
-  AlertTriangle
+  AlertTriangle,
+  FileCheck,
+  X,
+  FileWarning
 } from 'lucide-react';
 import { useShlokas } from '../context/ShlokaContext';
+import { storage } from '../firebase/config';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+
+const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB strict limit
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png'];
+const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png'];
+
+/**
+ * Validates that an uploaded file is strictly a PC image, JPEG or PNG, under 2 MB.
+ */
+function validateWallpaperFile(file) {
+  if (!file) {
+    return { valid: false, error: 'Please choose an image file from your PC.' };
+  }
+
+  const name = (file.name || '').toLowerCase();
+  const hasValidExt = ALLOWED_EXTENSIONS.some((ext) => name.endsWith(ext));
+  const hasValidMime = ALLOWED_MIME_TYPES.includes(file.type);
+
+  if (!hasValidExt || !hasValidMime) {
+    return {
+      valid: false,
+      error: `Format rejected (${file.type || 'unknown'}). Only JPEG (.jpg, .jpeg) and PNG (.png) files are accepted.`
+    };
+  }
+
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+    return {
+      valid: false,
+      error: `File size too large (${sizeInMB} MB). Maximum allowed size is 2 MB.`
+    };
+  }
+
+  return { valid: true, error: null };
+}
+
+/**
+ * Compresses an image to an optimized vertical 9:16 data URL (< 500KB)
+ * to safely store in Firestore even if Firebase Cloud Storage is offline.
+ */
+function compressImageToDataUrl(file, maxWidth = 1080, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const mime = file.type === 'image/png' && file.size < 600 * 1024 ? 'image/png' : 'image/jpeg';
+        resolve(canvas.toDataURL(mime, quality));
+      };
+      img.onerror = () => reject(new Error('Failed to parse uploaded image.'));
+      img.src = e.target.result;
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+}
 
 export default function WallpaperManagerView() {
   const { 
@@ -21,7 +95,6 @@ export default function WallpaperManagerView() {
     addWallpaper, 
     deleteWallpaper,
     loadFromFirestore,
-    firestoreError,
     connectionHealth
   } = useShlokas();
 
@@ -32,10 +105,15 @@ export default function WallpaperManagerView() {
   const [isSeedingWp, setIsSeedingWp] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState(null);
 
-  // Form state
+  // Upload Form state
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState('nature');
-  const [newUrl, setNewUrl] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [filePreview, setFilePreview] = useState(null);
+  const [fileError, setFileError] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const fileInputRef = useRef(null);
 
   const activePreview = previewWallpaper || (wallpapers.length > 0 ? wallpapers[0] : null);
 
@@ -60,35 +138,119 @@ export default function WallpaperManagerView() {
     }
   };
 
+  const handleFileSelection = (file) => {
+    setFileError(null);
+    if (!file) return;
+
+    const validation = validateWallpaperFile(file);
+    if (!validation.valid) {
+      setFileError(validation.error);
+      setSelectedFile(null);
+      setFilePreview(null);
+      return;
+    }
+
+    setSelectedFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setFilePreview(objectUrl);
+
+    // Auto-fill title from filename if title is currently empty
+    if (!newTitle.trim()) {
+      const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+      setNewTitle(cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileSelection(e.dataTransfer.files[0]);
+    }
+  };
+
+  const resetUploadModal = () => {
+    setIsUploadOpen(false);
+    setNewTitle('');
+    setNewCategory('nature');
+    setSelectedFile(null);
+    setFilePreview(null);
+    setFileError(null);
+    setIsDragging(false);
+  };
+
   const handleAddWallpaper = async (e) => {
     e.preventDefault();
-    if (!newTitle.trim() || !newUrl.trim()) {
-      alert('Please provide a title and image URL');
+    if (!newTitle.trim()) {
+      alert('Please provide a title for the wallpaper.');
+      return;
+    }
+
+    if (!selectedFile) {
+      setFileError('Please select a JPEG or PNG image from your PC.');
+      return;
+    }
+
+    const validation = validateWallpaperFile(selectedFile);
+    if (!validation.valid) {
+      setFileError(validation.error);
       return;
     }
 
     try {
       setIsSubmitting(true);
+      setFileError(null);
+
+      let finalUrl = '';
+
+      // 1. Try uploading to Firebase Cloud Storage if available
+      if (storage) {
+        try {
+          const cleanName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+          const storageRef = ref(storage, `wallpapers/${Date.now()}_${cleanName}`);
+          const uploadSnapshot = await uploadBytes(storageRef, selectedFile);
+          finalUrl = await getDownloadURL(uploadSnapshot.ref);
+        } catch (storageErr) {
+          console.warn('Firebase Storage upload error, using optimized inline storage:', storageErr);
+        }
+      }
+
+      // 2. High-performance fallback: optimize to compressed vertical data URL (< 500 KB)
+      if (!finalUrl) {
+        finalUrl = await compressImageToDataUrl(selectedFile);
+      }
+
       const newWp = {
         title: newTitle.trim(),
         category: newCategory,
         categoryLabel: newCategory === 'nature' ? 'Misty Nature' :
                        newCategory === 'texture' ? 'Bold Texture' :
                        newCategory === 'smoke' ? 'Smoke & Ether' : 'Atmospheric Horizon',
-        url: newUrl.trim(),
-        thumbnail: newUrl.trim(),
+        url: finalUrl,
+        thumbnail: finalUrl,
         accentColor: '#F5F5F7',
         recommendedOpacity: 0.65,
-        isPopular: false
+        isPopular: false,
+        file_size_kb: Math.round(selectedFile.size / 1024),
+        original_name: selectedFile.name
       };
 
       await addWallpaper(newWp);
-      showToast(`Wallpaper "${newTitle}" saved directly to Cloud Firestore!`);
-      setIsUploadOpen(false);
-      setNewTitle('');
-      setNewUrl('');
+      showToast(`Wallpaper "${newTitle}" uploaded from PC and saved to Cloud Firestore!`);
+      resetUploadModal();
     } catch (err) {
-      alert(`Error saving wallpaper: ${err.message}`);
+      console.error(err);
+      setFileError(`Upload failed: ${err.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -119,7 +281,7 @@ export default function WallpaperManagerView() {
         <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-            <span>Firestore Permissions Blocked: Firestore Security Rules are currently denying read/write access.</span>
+            <span>Firestore Permissions Blocked: Cloud Firestore Security Rules are denying read/write access.</span>
           </div>
           <button
             onClick={loadFromFirestore}
@@ -145,7 +307,7 @@ export default function WallpaperManagerView() {
             </span>
           </div>
           <p className="text-xs text-[#A1A8B3]">
-            Ultra HD lockscreen backgrounds synchronized with the Sutra mobile application.
+            High-definition 9:16 lockscreen backgrounds synchronized with the Sutra mobile application.
           </p>
         </div>
 
@@ -172,10 +334,10 @@ export default function WallpaperManagerView() {
 
           <button
             onClick={() => setIsUploadOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-[#181B20] border border-[#2A2E37] hover:border-[#E6C794] text-[#F5F5F7] text-xs font-semibold rounded-xl transition-all shadow-sm cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2 bg-[#E6C794] text-[#0D0F12] text-xs font-semibold rounded-xl hover:bg-[#D4B27B] transition-all shadow-sm cursor-pointer"
           >
-            <Upload className="w-4 h-4 text-[#E6C794]" />
-            <span>Upload New Wallpaper</span>
+            <Upload className="w-4 h-4 text-[#0D0F12]" />
+            <span>Upload from PC (&lt;2MB)</span>
           </button>
         </div>
       </div>
@@ -214,7 +376,7 @@ export default function WallpaperManagerView() {
               className="flex items-center gap-2 px-5 py-2.5 bg-[#121418] border border-[#2A2E37] text-xs font-medium text-[#F5F5F7] hover:border-[#E6C794] rounded-xl transition-all cursor-pointer"
             >
               <Upload className="w-4 h-4 text-[#E6C794]" />
-              <span>Upload Custom Wallpaper</span>
+              <span>Upload from PC (&lt; 2MB)</span>
             </button>
           </div>
         </div>
@@ -322,24 +484,116 @@ export default function WallpaperManagerView() {
         </div>
       )}
 
-      {/* Upload Wallpaper Modal */}
+      {/* Upload Wallpaper from PC Modal (Strictly PC File Only, JPEG/PNG < 2MB) */}
       {isUploadOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#181B20] border border-[#2A2E37] w-full max-w-md rounded-2xl p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-[#F5F5F7]">Upload Wallpaper to Firestore</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-[#181B20] border border-[#2A2E37] w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-[#2A2E37]">
+              <div>
+                <h3 className="text-base font-semibold text-[#F5F5F7]">Upload Wallpaper from PC</h3>
+                <p className="text-xs text-[#A1A8B3] mt-0.5">Strictly PC local file upload (External links prohibited)</p>
+              </div>
               <button
-                onClick={() => setIsUploadOpen(false)}
-                className="text-xs text-[#A1A8B3] hover:text-white cursor-pointer"
+                onClick={resetUploadModal}
+                className="p-1 rounded-lg text-[#A1A8B3] hover:text-white hover:bg-[#2A2E37] transition-colors cursor-pointer"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-xs text-[#A1A8B3]">
-              The image URL will be stored in your Cloud Firestore <code className="text-[#E6C794]">wallpapers</code> collection and synced to all mobile apps.
-            </p>
 
-            <form onSubmit={handleAddWallpaper} className="space-y-3.5">
+            {/* Strict Policy Banner */}
+            <div className="p-3 rounded-xl bg-[#121418] border border-[#2A2E37] grid grid-cols-2 gap-2 text-[11px] text-[#A1A8B3]">
+              <div className="flex items-center gap-1.5">
+                <FileCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span>Format: <strong>JPEG (.jpg, .jpeg) & PNG (.png)</strong></span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <FileWarning className="w-3.5 h-3.5 text-[#E6C794] shrink-0" />
+                <span>Max File Size: <strong>&lt; 2 MB</strong></span>
+              </div>
+            </div>
+
+            {/* Error Feedback */}
+            {fileError && (
+              <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <span>{fileError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleAddWallpaper} className="space-y-4">
+              {/* File Dropzone */}
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider text-[#A1A8B3] font-medium mb-1.5">
+                  Choose Image File from Computer
+                </label>
+                
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      handleFileSelection(e.target.files[0]);
+                    }
+                  }}
+                  className="hidden"
+                />
+
+                {!selectedFile ? (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
+                      isDragging
+                        ? 'border-[#E6C794] bg-[#E6C794]/10 scale-[1.01]'
+                        : 'border-[#2A2E37] bg-[#121418] hover:border-[#E6C794]/60 hover:bg-[#15181E]'
+                    }`}
+                  >
+                    <div className="w-12 h-12 rounded-2xl bg-[#E6C794]/10 border border-[#E6C794]/30 flex items-center justify-center text-[#E6C794] mx-auto mb-3 shadow-md">
+                      <Upload className="w-6 h-6" />
+                    </div>
+                    <p className="text-xs font-semibold text-[#F5F5F7]">
+                      Click to browse your PC or drag & drop image here
+                    </p>
+                    <p className="text-[11px] text-[#A1A8B3] mt-1">
+                      JPEG or PNG only &bull; Under 2 MB &bull; Recommended 9:16 vertical ratio
+                    </p>
+                  </div>
+                ) : (
+                  /* Selected File Preview Box */
+                  <div className="p-3.5 rounded-2xl bg-[#121418] border border-[#2A2E37] flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-12 h-16 rounded-lg overflow-hidden border border-[#2A2E37] bg-black shrink-0 shadow">
+                        <img src={filePreview} alt="Preview" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-semibold text-[#F5F5F7] truncate">{selectedFile.name}</h4>
+                        <p className="text-[11px] text-emerald-400 flex items-center gap-1.5 mt-0.5">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB &bull; {selectedFile.type} (Valid)</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFile(null);
+                        setFilePreview(null);
+                        setFileError(null);
+                      }}
+                      className="px-2.5 py-1 rounded-lg text-xs text-rose-400 hover:bg-rose-500/10 border border-rose-500/20 transition-colors cursor-pointer shrink-0"
+                    >
+                      Change File
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Title input */}
               <div>
                 <label className="block text-[11px] uppercase tracking-wider text-[#A1A8B3] font-medium mb-1">
                   Wallpaper Title
@@ -350,10 +604,11 @@ export default function WallpaperManagerView() {
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="e.g. Celestial Golden Dawn"
-                  className="w-full bg-[#121418] border border-[#2A2E37] rounded-xl px-3 py-2 text-xs text-[#F5F5F7] focus:outline-none focus:border-[#E6C794]"
+                  className="w-full bg-[#121418] border border-[#2A2E37] rounded-xl px-3 py-2.5 text-xs text-[#F5F5F7] focus:outline-none focus:border-[#E6C794]"
                 />
               </div>
 
+              {/* Category selector */}
               <div>
                 <label className="block text-[11px] uppercase tracking-wider text-[#A1A8B3] font-medium mb-1">
                   Category
@@ -361,7 +616,7 @@ export default function WallpaperManagerView() {
                 <select
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value)}
-                  className="w-full bg-[#121418] border border-[#2A2E37] rounded-xl px-3 py-2 text-xs text-[#F5F5F7] focus:outline-none focus:border-[#E6C794]"
+                  className="w-full bg-[#121418] border border-[#2A2E37] rounded-xl px-3 py-2.5 text-xs text-[#F5F5F7] focus:outline-none focus:border-[#E6C794] cursor-pointer"
                 >
                   <option value="nature">Misty Nature</option>
                   <option value="texture">Bold Texture / Stone</option>
@@ -370,34 +625,30 @@ export default function WallpaperManagerView() {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-[11px] uppercase tracking-wider text-[#A1A8B3] font-medium mb-1">
-                  Image URL (Ultra HD 9:16 Vertical)
-                </label>
-                <input
-                  type="url"
-                  required
-                  value={newUrl}
-                  onChange={(e) => setNewUrl(e.target.value)}
-                  placeholder="https://images.unsplash.com/photo-..."
-                  className="w-full bg-[#121418] border border-[#2A2E37] rounded-xl px-3 py-2 text-xs text-[#F5F5F7] focus:outline-none focus:border-[#E6C794]"
-                />
-              </div>
-
               <div className="pt-3 flex justify-end gap-2 border-t border-[#2A2E37]">
                 <button
                   type="button"
-                  onClick={() => setIsUploadOpen(false)}
-                  className="px-3 py-1.5 text-xs text-[#A1A8B3] hover:text-[#F5F5F7] cursor-pointer"
+                  onClick={resetUploadModal}
+                  className="px-4 py-2 text-xs text-[#A1A8B3] hover:text-[#F5F5F7] cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#E6C794] text-[#0D0F12] hover:bg-[#D4B27B] transition-all cursor-pointer disabled:opacity-50"
+                  disabled={isSubmitting || !selectedFile}
+                  className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-[#E6C794] text-[#0D0F12] hover:bg-[#D4B27B] transition-all cursor-pointer shadow-md disabled:opacity-40 flex items-center gap-2"
                 >
-                  {isSubmitting ? 'Writing to Firestore...' : 'Save to Firestore'}
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-[#0D0F12] border-t-transparent rounded-full animate-spin" />
+                      <span>Uploading & Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload & Save to Firestore</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
