@@ -5,19 +5,18 @@ import {
   PlusCircle, 
   Image as ImageIcon, 
   Settings, 
-  Sparkles,
-  CloudCheck,
-  CloudOff,
-  Feather,
-  LogOut,
-  ShieldCheck
+  Sparkles, 
+  Feather, 
+  LogOut, 
+  ShieldCheck,
+  Database
 } from 'lucide-react';
 import { isFirebaseConfigured } from '../firebase/config';
 import { useShlokas } from '../context/ShlokaContext';
 import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar({ currentView, setCurrentView, openAddModal }) {
-  const { hasUnsavedChanges, publishedVersion } = useShlokas();
+  const { hasUnsavedChanges, publishedVersion, shlokas, isLoadingFirestore } = useShlokas();
   const { user, logout, ownerEmail } = useAuth();
 
   const navItems = [
@@ -52,7 +51,7 @@ export default function Sidebar({ currentView, setCurrentView, openAddModal }) {
               <button
                 key={item.id}
                 onClick={() => setCurrentView(item.id)}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer ${
                   isActive
                     ? 'bg-[#E6C794] text-[#0D0F12] font-semibold shadow-md'
                     : 'text-[#A1A8B3] hover:text-[#F5F5F7] hover:bg-[#181B20]'
@@ -67,7 +66,7 @@ export default function Sidebar({ currentView, setCurrentView, openAddModal }) {
           <div className="pt-4">
             <button
               onClick={openAddModal}
-              className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-medium bg-[#1F242C] border border-[#E6C794]/30 text-[#E6C794] hover:bg-[#E6C794] hover:text-[#0D0F12] transition-all shadow-sm"
+              className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-medium bg-[#1F242C] border border-[#E6C794]/30 text-[#E6C794] hover:bg-[#E6C794] hover:text-[#0D0F12] transition-all shadow-sm cursor-pointer"
             >
               <PlusCircle className="w-4 h-4" />
               <span>Add New Quote</span>
@@ -84,18 +83,22 @@ export default function Sidebar({ currentView, setCurrentView, openAddModal }) {
           <span className="font-mono text-[#E6C794] font-semibold">v{publishedVersion}</span>
         </div>
 
-        {/* Firebase Status */}
-        <div className="px-3 py-2 rounded-lg bg-[#181B20] border border-[#2A2E37] flex items-center gap-2 text-xs">
-          {isFirebaseConfigured ? (
-            <>
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-emerald-400 font-medium">Firestore Connected</span>
-            </>
+        {/* Firebase Live Database Status */}
+        <div className="px-3 py-2 rounded-lg bg-[#181B20] border border-[#2A2E37] flex items-center justify-between text-xs">
+          <span className="text-[#A1A8B3] flex items-center gap-1.5">
+            <Database className="w-3.5 h-3.5 text-[#E6C794]" />
+            <span>Firestore</span>
+          </span>
+          {isLoadingFirestore ? (
+            <span className="text-[#A1A8B3] text-[11px]">Syncing...</span>
+          ) : isFirebaseConfigured ? (
+            shlokas.length === 0 ? (
+              <span className="text-amber-400 font-medium text-[11px]">0 (Empty)</span>
+            ) : (
+              <span className="text-emerald-400 font-medium text-[11px]">{shlokas.length} Verses</span>
+            )
           ) : (
-            <>
-              <div className="w-2 h-2 rounded-full bg-amber-400" />
-              <span className="text-[#A1A8B3]">Local Sandbox Mode</span>
-            </>
+            <span className="text-amber-400 text-[11px]">Sandbox</span>
           )}
         </div>
 

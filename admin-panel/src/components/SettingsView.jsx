@@ -8,13 +8,22 @@ import {
   Download, 
   Upload, 
   HelpCircle,
-  Cpu
+  Cpu,
+  Sparkles,
+  RefreshCw
 } from 'lucide-react';
 import { firebaseConfig, isFirebaseConfigured } from '../firebase/config';
 import { useShlokas } from '../context/ShlokaContext';
 
 export default function SettingsView() {
-  const { shlokas, publishedVersion } = useShlokas();
+  const { 
+    shlokas, 
+    publishedVersion, 
+    seedDatabaseToFirestore, 
+    loadFromFirestore,
+    isLoadingFirestore,
+    isSeeding 
+  } = useShlokas();
 
   // Local Form state for Firebase config
   const [apiKey, setApiKey] = useState(firebaseConfig.apiKey || '');
@@ -25,6 +34,7 @@ export default function SettingsView() {
   const [appId, setAppId] = useState(firebaseConfig.appId || '');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [seedSuccessMsg, setSeedSuccessMsg] = useState(null);
 
   const handleSaveConfig = (e) => {
     e.preventDefault();
@@ -51,18 +61,85 @@ export default function SettingsView() {
     }
   };
 
+  const handleSeedToFirestore = async () => {
+    try {
+      setSeedSuccessMsg(null);
+      const count = await seedDatabaseToFirestore();
+      setSeedSuccessMsg(`Successfully written ${count} scripture verses to Cloud Firestore!`);
+      setTimeout(() => setSeedSuccessMsg(null), 5000);
+    } catch (err) {
+      alert(`Seeding failed: ${err.message}`);
+    }
+  };
+
   return (
     <div className="p-8 space-y-8 max-w-5xl mx-auto">
-      {/* Firebase Connection Card */}
-      <div className="p-6 rounded-3xl bg-[#181B20] border border-[#2A2E37] space-y-6">
+      {/* Cloud Firestore Data Management Card */}
+      <div className="p-6 rounded-3xl bg-[#181B20] border border-[#2A2E37] space-y-5">
         <div className="flex items-center justify-between pb-4 border-b border-[#2A2E37]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#E6C794]/10 border border-[#E6C794]/30 flex items-center justify-center text-[#E6C794]">
               <Database className="w-5 h-5" />
             </div>
             <div>
+              <h3 className="font-semibold text-base text-[#F5F5F7]">Cloud Firestore Data Manager</h3>
+              <p className="text-xs text-[#A1A8B3]">Seed, sync, and inspect actual scripture verses in project <strong className="text-white">daily-slok</strong></p>
+            </div>
+          </div>
+
+          <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${
+            shlokas.length > 0
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+              : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+          }`}>
+            {shlokas.length} Verses in Firestore
+          </span>
+        </div>
+
+        {seedSuccessMsg && (
+          <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <span>{seedSuccessMsg}</span>
+          </div>
+        )}
+
+        <p className="text-xs text-[#A1A8B3] leading-relaxed">
+          {shlokas.length === 0
+            ? "Your Firestore database currently has no documents. Click 'Seed All Sacred Verses' below to immediately fill Firestore with verified verses from Bhagavad Gita, Hanuman Chalisa, Ramcharitmanas, and modern viral thoughts."
+            : `Your Cloud Firestore currently holds ${shlokas.length} live scripture verses. Edits, additions, and deletions made in this admin panel update Cloud Firestore in real time.`}
+        </p>
+
+        <div className="pt-2 flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleSeedToFirestore}
+            disabled={isSeeding}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E6C794] text-[#0D0F12] text-xs font-semibold hover:bg-[#D4B27B] transition-all shadow-md cursor-pointer disabled:opacity-50"
+          >
+            <Sparkles className="w-4 h-4 text-[#0D0F12]" />
+            <span>{isSeeding ? 'Writing to Firestore...' : 'Seed / Re-seed All Sacred Verses to Firestore'}</span>
+          </button>
+
+          <button
+            onClick={loadFromFirestore}
+            disabled={isLoadingFirestore}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#121418] border border-[#2A2E37] text-xs font-medium text-[#F5F5F7] hover:border-[#E6C794] transition-all cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoadingFirestore ? 'animate-spin text-[#E6C794]' : ''}`} />
+            <span>Refresh Data from Firestore</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Firebase Connection Card */}
+      <div className="p-6 rounded-3xl bg-[#181B20] border border-[#2A2E37] space-y-6">
+        <div className="flex items-center justify-between pb-4 border-b border-[#2A2E37]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#E6C794]/10 border border-[#E6C794]/30 flex items-center justify-center text-[#E6C794]">
+              <Cpu className="w-5 h-5" />
+            </div>
+            <div>
               <h3 className="font-semibold text-base text-[#F5F5F7]">Firebase Project Connection</h3>
-              <p className="text-xs text-[#A1A8B3]">Connect your Cloud Firestore database for live synchronization</p>
+              <p className="text-xs text-[#A1A8B3]">Active project credentials and configuration parameters</p>
             </div>
           </div>
 
@@ -98,7 +175,7 @@ export default function SettingsView() {
                 required
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
-                placeholder="e.g. sutra-wisdom-app"
+                placeholder="e.g. daily-slok"
                 className="w-full bg-[#121418] border border-[#2A2E37] rounded-xl px-3 py-2 text-xs text-[#F5F5F7] focus:outline-none focus:border-[#E6C794]"
               />
             </div>
@@ -125,7 +202,7 @@ export default function SettingsView() {
                 type="text"
                 value={authDomain}
                 onChange={(e) => setAuthDomain(e.target.value)}
-                placeholder="sutra-wisdom-app.firebaseapp.com"
+                placeholder="daily-slok.firebaseapp.com"
                 className="w-full bg-[#121418] border border-[#2A2E37] rounded-xl px-3 py-2 text-xs text-[#F5F5F7] focus:outline-none focus:border-[#E6C794]"
               />
             </div>
@@ -138,7 +215,7 @@ export default function SettingsView() {
                 type="text"
                 value={storageBucket}
                 onChange={(e) => setStorageBucket(e.target.value)}
-                placeholder="sutra-wisdom-app.appspot.com"
+                placeholder="daily-slok.firebasestorage.app"
                 className="w-full bg-[#121418] border border-[#2A2E37] rounded-xl px-3 py-2 text-xs text-[#F5F5F7] focus:outline-none focus:border-[#E6C794]"
               />
             </div>
@@ -151,7 +228,7 @@ export default function SettingsView() {
                 type="text"
                 value={messagingSenderId}
                 onChange={(e) => setMessagingSenderId(e.target.value)}
-                placeholder="10492817492"
+                placeholder="417216826909"
                 className="w-full bg-[#121418] border border-[#2A2E37] rounded-xl px-3 py-2 text-xs text-[#F5F5F7] focus:outline-none focus:border-[#E6C794]"
               />
             </div>
@@ -164,7 +241,7 @@ export default function SettingsView() {
                 type="text"
                 value={appId}
                 onChange={(e) => setAppId(e.target.value)}
-                placeholder="1:10492817492:web:..."
+                placeholder="1:417216826909:web:..."
                 className="w-full bg-[#121418] border border-[#2A2E37] rounded-xl px-3 py-2 text-xs text-[#F5F5F7] focus:outline-none focus:border-[#E6C794]"
               />
             </div>
@@ -175,7 +252,7 @@ export default function SettingsView() {
               <button
                 type="button"
                 onClick={handleClearConfig}
-                className="text-xs text-red-400 hover:text-red-300"
+                className="text-xs text-red-400 hover:text-red-300 cursor-pointer"
               >
                 Disconnect Firebase
               </button>
@@ -183,7 +260,7 @@ export default function SettingsView() {
 
             <button
               type="submit"
-              className="px-6 py-2.5 rounded-xl text-xs font-semibold bg-[#E6C794] text-[#0D0F12] hover:bg-[#D4B27B] transition-all shadow-md"
+              className="px-6 py-2.5 rounded-xl text-xs font-semibold bg-[#E6C794] text-[#0D0F12] hover:bg-[#D4B27B] transition-all shadow-md cursor-pointer"
             >
               Save & Connect Firebase
             </button>

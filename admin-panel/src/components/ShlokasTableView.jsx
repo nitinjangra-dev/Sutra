@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Edit3, 
   Trash2, 
@@ -7,7 +7,10 @@ import {
   Filter, 
   RotateCcw,
   Tag,
-  BookOpen
+  BookOpen,
+  Database,
+  RefreshCw,
+  CheckCircle2
 } from 'lucide-react';
 import { useShlokas } from '../context/ShlokaContext';
 import { SOURCES, MOOD_CATEGORIES } from '../data/seedShlokas';
@@ -24,11 +27,35 @@ export default function ShlokasTableView({ openEditModal, openAddModal }) {
     setSelectedMood,
     onlyViral,
     setOnlyViral,
-    resetToOriginalSeed
+    seedDatabaseToFirestore,
+    loadFromFirestore,
+    isLoadingFirestore,
+    isSeeding
   } = useShlokas();
+
+  const [seedSuccess, setSeedSuccess] = useState(false);
+
+  const handleSeed = async () => {
+    try {
+      setSeedSuccess(false);
+      await seedDatabaseToFirestore();
+      setSeedSuccess(true);
+      setTimeout(() => setSeedSuccess(false), 5000);
+    } catch (err) {
+      alert(`Seeding failed: ${err.message}`);
+    }
+  };
 
   return (
     <div className="p-8 space-y-6 max-w-7xl mx-auto">
+      {/* Seed Success Alert */}
+      {seedSuccess && (
+        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span>Successfully populated Cloud Firestore with verified verses!</span>
+        </div>
+      )}
+
       {/* Header & Source Filter Tabs */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Source Tabs */}
@@ -37,7 +64,7 @@ export default function ShlokasTableView({ openEditModal, openAddModal }) {
             <button
               key={source}
               onClick={() => setSelectedSource(source)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all cursor-pointer ${
                 selectedSource === source
                   ? 'bg-[#E6C794] text-[#0D0F12] font-semibold shadow-sm'
                   : 'text-[#A1A8B3] hover:text-[#F5F5F7] hover:bg-[#22262E]'
@@ -50,6 +77,16 @@ export default function ShlokasTableView({ openEditModal, openAddModal }) {
 
         {/* Action Controls */}
         <div className="flex items-center gap-3">
+          {/* Refresh from Firestore button */}
+          <button
+            onClick={loadFromFirestore}
+            disabled={isLoadingFirestore}
+            title="Refresh actual data from Cloud Firestore"
+            className="p-2 rounded-xl bg-[#181B20] border border-[#2A2E37] text-[#A1A8B3] hover:text-[#E6C794] hover:border-[#E6C794]/40 transition-all cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoadingFirestore ? 'animate-spin text-[#E6C794]' : ''}`} />
+          </button>
+
           {/* Mood Filter */}
           <div className="relative">
             <select
@@ -69,7 +106,7 @@ export default function ShlokasTableView({ openEditModal, openAddModal }) {
           {/* Viral Spotlight Toggle */}
           <button
             onClick={() => setOnlyViral(!onlyViral)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border transition-all cursor-pointer ${
               onlyViral
                 ? 'bg-amber-500/10 border-amber-500 text-amber-400 font-semibold'
                 : 'bg-[#181B20] border-[#2A2E37] text-[#A1A8B3] hover:text-[#F5F5F7]'
@@ -82,7 +119,7 @@ export default function ShlokasTableView({ openEditModal, openAddModal }) {
           {/* Add New Shloka Button */}
           <button
             onClick={openAddModal}
-            className="flex items-center gap-1.5 px-4 py-2 bg-[#E6C794] text-[#0D0F12] text-xs font-semibold rounded-xl hover:bg-[#D4B27B] transition-all shadow-sm"
+            className="flex items-center gap-1.5 px-4 py-2 bg-[#E6C794] text-[#0D0F12] text-xs font-semibold rounded-xl hover:bg-[#D4B27B] transition-all shadow-sm cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Add Quote</span>
@@ -107,12 +144,42 @@ export default function ShlokasTableView({ openEditModal, openAddModal }) {
             <tbody className="divide-y divide-[#2A2E37]/60 text-xs">
               {filteredShlokas.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-[#A1A8B3]">
-                    <div className="max-w-xs mx-auto space-y-2">
-                      <BookOpen className="w-8 h-8 text-[#E6C794]/40 mx-auto" />
-                      <p className="font-medium text-[#F5F5F7]">No verses found matching your criteria</p>
-                      <p className="text-[11px]">Try clearing search filters or add a new quote.</p>
-                    </div>
+                  <td colSpan={6} className="py-16 text-center text-[#A1A8B3]">
+                    {shlokas.length === 0 ? (
+                      <div className="max-w-md mx-auto space-y-4">
+                        <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto">
+                          <Database className="w-6 h-6 animate-pulse" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-base text-[#F5F5F7]">Firestore Database is Empty (0 Verses)</h4>
+                          <p className="text-xs text-[#A1A8B3] mt-1 leading-relaxed">
+                            No verses found in Cloud Firestore. Click below to seed all sacred verses directly into Firestore, or create a new quote manually.
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-center gap-3 pt-2">
+                          <button
+                            onClick={handleSeed}
+                            disabled={isSeeding}
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E6C794] text-[#0D0F12] text-xs font-semibold hover:bg-[#D4B27B] transition-all shadow-md cursor-pointer disabled:opacity-50"
+                          >
+                            <Sparkles className="w-4 h-4 text-[#0D0F12]" />
+                            <span>{isSeeding ? 'Writing to Firestore...' : 'Seed All Sacred Verses to Firestore'}</span>
+                          </button>
+                          <button
+                            onClick={openAddModal}
+                            className="px-4 py-2.5 rounded-xl bg-[#121418] border border-[#2A2E37] text-xs font-medium text-[#F5F5F7] hover:border-[#E6C794] transition-all cursor-pointer"
+                          >
+                            Add Single Quote
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="max-w-xs mx-auto space-y-2">
+                        <BookOpen className="w-8 h-8 text-[#E6C794]/40 mx-auto" />
+                        <p className="font-medium text-[#F5F5F7]">No verses found matching your criteria</p>
+                        <p className="text-[11px]">Try clearing search filters or select All Sources.</p>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ) : (
@@ -168,7 +235,7 @@ export default function ShlokasTableView({ openEditModal, openAddModal }) {
                       <button
                         onClick={() => toggleViral(item.id)}
                         title={item.is_viral ? "Remove from Viral Spotlight" : "Set as Viral Spotlight"}
-                        className={`p-1.5 rounded-lg border transition-all ${
+                        className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
                           item.is_viral
                             ? 'bg-amber-500/20 border-amber-500 text-amber-400'
                             : 'bg-[#121418] border-[#2A2E37] text-[#6B7280] hover:text-[#A1A8B3]'
@@ -183,18 +250,18 @@ export default function ShlokasTableView({ openEditModal, openAddModal }) {
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => openEditModal(item)}
-                          className="p-1.5 rounded-lg bg-[#121418] border border-[#2A2E37] text-[#A1A8B3] hover:text-[#E6C794] hover:border-[#E6C794]/50 transition-colors"
+                          className="p-1.5 rounded-lg bg-[#121418] border border-[#2A2E37] text-[#A1A8B3] hover:text-[#E6C794] hover:border-[#E6C794]/50 transition-colors cursor-pointer"
                           title="Edit Verse"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => {
-                            if (window.confirm('Are you sure you want to delete this verse?')) {
+                            if (window.confirm('Are you sure you want to delete this verse from Firestore?')) {
                               deleteShloka(item.id);
                             }
                           }}
-                          className="p-1.5 rounded-lg bg-[#121418] border border-[#2A2E37] text-[#A1A8B3] hover:text-red-400 hover:border-red-500/50 transition-colors"
+                          className="p-1.5 rounded-lg bg-[#121418] border border-[#2A2E37] text-[#A1A8B3] hover:text-red-400 hover:border-red-500/50 transition-colors cursor-pointer"
                           title="Delete Verse"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -212,19 +279,20 @@ export default function ShlokasTableView({ openEditModal, openAddModal }) {
         <div className="p-4 bg-[#121418] border-t border-[#2A2E37] flex items-center justify-between text-xs text-[#A1A8B3]">
           <span>
             Showing <strong className="text-[#F5F5F7]">{filteredShlokas.length}</strong> of{' '}
-            <strong className="text-[#F5F5F7]">{shlokas.length}</strong> total lines
+            <strong className="text-[#F5F5F7]">{shlokas.length}</strong> actual verses in Firestore
           </span>
 
           <button
             onClick={() => {
-              if (window.confirm('Reset all verses to the verified master seed dataset?')) {
-                resetToOriginalSeed();
+              if (window.confirm('Reset all verses in Cloud Firestore to the master seed dataset? This will overwrite existing verses.')) {
+                handleSeed();
               }
             }}
-            className="flex items-center gap-1.5 text-xs text-[#6B7280] hover:text-[#E6C794] transition-colors"
+            disabled={isSeeding}
+            className="flex items-center gap-1.5 text-xs text-[#6B7280] hover:text-[#E6C794] transition-colors cursor-pointer disabled:opacity-50"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reset Master Seed</span>
+            <span>Reset to Master Seed</span>
           </button>
         </div>
       </div>
