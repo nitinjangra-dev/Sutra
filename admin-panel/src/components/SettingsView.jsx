@@ -244,28 +244,42 @@ export default function SettingsView() {
           </div>
 
           {/* Rule Selection Tabs */}
-          <div className="flex items-center gap-2 p-1 bg-[#121418] border border-[#2A2E37] rounded-xl w-fit">
+          <div className="flex flex-wrap items-center gap-2 p-1 bg-[#121418] border border-[#2A2E37] rounded-xl w-fit">
             <button
               onClick={() => setActiveRuleTab('firestore')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeRuleTab === 'firestore'
                   ? 'bg-[#E6C794] text-[#0D0F12] font-semibold'
                   : 'text-[#A1A8B3] hover:text-white'
               }`}
             >
-              Firestore Database Rules
+              <span>Firestore Database Rules</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                activeRuleTab === 'firestore' ? 'bg-[#0D0F12]/20 text-[#0D0F12]' : 'bg-emerald-500/20 text-emerald-400'
+              }`}>
+                100% Free &bull; Required
+              </span>
             </button>
             <button
               onClick={() => setActiveRuleTab('storage')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeRuleTab === 'storage'
                   ? 'bg-[#E6C794] text-[#0D0F12] font-semibold'
                   : 'text-[#A1A8B3] hover:text-white'
               }`}
             >
-              Cloud Storage Rules (Wallpapers)
+              <span>Cloud Storage Rules</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full font-mono bg-[#2A2E37] text-[#A1A8B3]">
+                Optional (Not Needed for Free Plan)
+              </span>
             </button>
           </div>
+
+          {activeRuleTab === 'storage' && (
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
+              💡 <strong>No Upgrade Required:</strong> If Firebase Console asks you to upgrade to the Blaze plan for Cloud Storage, you can simply skip Storage! Sutra automatically optimizes and saves all wallpapers directly into <strong>Cloud Firestore</strong> completely free without any credit card or billing.
+            </div>
+          )}
 
           <div className="relative rounded-2xl bg-[#0D0F12] border border-[#2A2E37] p-4 text-xs font-mono text-[#E6C794] overflow-x-auto">
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#2A2E37]/60 text-[11px] text-[#A1A8B3]">

@@ -126,6 +126,10 @@ export default function DashboardView({ setCurrentView, openAddModal }) {
                 <p className="text-xs text-[#A1A8B3] max-w-2xl leading-relaxed">
                   Firebase project <code className="text-[#E6C794] font-mono">daily-slok</code> rejected the connection because its security rules in Firebase Console currently block reads and writes. To enable live data synchronization:
                 </p>
+                <p className="text-[11px] text-emerald-400 font-medium mt-1 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Cloud Firestore is 100% Free on the Spark plan &mdash; no credit card or billing upgrade required!</span>
+                </p>
               </div>
             </div>
 
